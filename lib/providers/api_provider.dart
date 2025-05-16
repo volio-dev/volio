@@ -1,58 +1,72 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import 'package:volio/model/coin.dart';
+import 'package:volio/providers/api_key_provider.dart';
 import '../dio/api_client.dart';
 
 final newCoinEnhancedProvider = FutureProvider<List<Coin>>((ref) async {
   final dio = Dio();
-  dio.options.headers['X-API-KEY'] = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6IjIyODFhOTI3LTlmZmEtNGY5MS1hYzg0LWVlYzBmMmE3Zjc4NCIsIm9yZ0lkIjoiNDM5MTAxIiwidXNlcklkIjoiNDUxNzQ0IiwidHlwZUlkIjoiYThmMTcxOTQtOWUzZi00MzkyLWI3ZWYtZDU0N2NhMjM1ZDRhIiwidHlwZSI6IlBST0pFQ1QiLCJpYXQiOjE3NDM1MDYyNzEsImV4cCI6NDg5OTI2NjI3MX0.qQESIfuQqwFZguH2K_ffmZrNIZm9KzKBHP9FrWfIeVA';
+  final apiKey = ref.read(apiKeyProvider.notifier).get();
+  dio.options.headers['X-API-KEY'] = apiKey;
 
   final client = ApiClient(dio: dio);
-  const url = 'https://solana-gateway.moralis.io/token/mainnet/exchange/pumpfun/new?limit=5';
 
-  List<dynamic> rawCoinData = await client.fetchJsonData(url);
-  List<Coin> coinList = [];
-  for (var rawNewCoin in rawCoinData[0]["result"]) {
-    final address = rawNewCoin["tokenAddress"] ?? "";
-    final backupNameUrl = "https://solana-gateway.moralis.io/token/mainnet/$address/metadata";
-    final volumeUrl = "https://deep-index.moralis.io/api/v2.2/tokens/$address/analytics?chain=solana";
+  const url =
+      'https://solana-gateway.moralis.io/token/mainnet/exchange/pumpfun/new?limit=5';
+
+  final rawCoinData = await client.fetchJsonData(url);
+  final List<Coin> coinList = [];
+
+  for (final rawCoin in rawCoinData[0]['result']) {
+    final address = rawCoin['tokenAddress'] ?? '';
+    final metadataUrl =
+        'https://solana-gateway.moralis.io/token/mainnet/$address/metadata';
+    final analyticsUrl =
+        'https://deep-index.moralis.io/api/v2.2/tokens/$address/analytics?chain=solana';
 
     final responses = await Future.wait([
-      client.fetchJsonData(backupNameUrl).catchError((e) => [{}]),
-      client.fetchJsonData(volumeUrl).catchError((e) => [{}]),
+      client.fetchJsonData(metadataUrl).catchError((_) => [{}]),
+      client.fetchJsonData(analyticsUrl).catchError((_) => [{}]),
     ]);
 
-    final backupNameCoinData = responses[0];
-    final volumeCoinData = responses[1];
+    final metadata = responses[0].isNotEmpty ? responses[0][0] : {};
+    final analytics = responses[1].isNotEmpty ? responses[1][0] : {};
 
-    final backupName = backupNameCoinData.isNotEmpty ? (backupNameCoinData[0]["name"] ?? 'Unknown') : 'Unknown';
-    final iconUrl = backupNameCoinData.isNotEmpty ? (backupNameCoinData[0]["logo"] ?? '') : '';
-    final buy5m = volumeCoinData.isNotEmpty ? (volumeCoinData[0]["totalBuyVolume"]?["5m"] ?? 0) : 0;
-    final sell5m = volumeCoinData.isNotEmpty ? (volumeCoinData[0]["totalSellVolume"]?["5m"] ?? 0) : 0;
+    final backupName = metadata['name'] ?? 'Unknown';
+    final iconUrl = metadata['logo'] ?? '';
+
+    final buy5m = analytics['totalBuyVolume']?['5m'];
+    final sell5m = analytics['totalSellVolume']?['5m'];
 
     double parseVolume(dynamic value) {
-      if (value == null) return 0.0;
       try {
+        if (value == null) return 0.0;
         if (value is String) return double.parse(value);
         if (value is num) return value.toDouble();
-        return 0.0;
-      } catch (_) {
-        return 0.0;
-      }
+      } catch (_) {}
+      return 0.0;
     }
 
-    final double totalVolume = parseVolume(buy5m) + parseVolume(sell5m);
+    final totalVolume = parseVolume(buy5m) + parseVolume(sell5m);
 
-    Coin newEnhancedCoin = Coin.fromJson(rawNewCoin, backupName, iconUrl, totalVolume);
-    coinList.add(newEnhancedCoin);
+    final coin = Coin.fromJson(
+      rawCoin,
+      backupName,
+      iconUrl,
+      totalVolume,
+    );
+
+    coinList.add(coin);
   }
+
   return coinList;
 });
 
 final trendingCoinsProvider = FutureProvider<List<Coin>>((ref) async {
   final dio = Dio();
   final client = ApiClient(dio: dio);
-  const url = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=5&page=1';
+  const url =
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=volume_desc&per_page=5&page=1';
 
   final data = await client.fetchJsonData(url);
   return data.map((json) {

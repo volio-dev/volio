@@ -17,27 +17,17 @@ class Coin {
 
   factory Coin.fromJson(
       Map<String, dynamic> json1,
-      String? backupName,
-      String? iconUrl,
-      double? totalVolume,
+      backupName,
+      iconUrl,
+      totalVolume,
       ) {
-    print('fullyDilutedValuation: ${json1["fullyDilutedValuation"]}');
-    double parseMarketCap(dynamic value) {
-      if (value == null) return 0.0;
-      try {
-        if (value is String) return double.parse(value);
-        if (value is num) return value.toDouble();
-        return 0.0;
-      } catch (e) {
-        print('Error parsing fullyDilutedValuation: $e');
-        return 0.0;
-      }
-    }
-
     return Coin(
       name: json1["name"] ?? backupName ?? "",
       ticker: json1["symbol"],
-      marketCap: parseMarketCap(json1["fullyDilutedValuation"]),
+      marketCap:
+      json1["fullyDilutedValuation"] != null
+          ? double.parse(json1["fullyDilutedValuation"])
+          : 0,
       volume: totalVolume,
       address: json1["tokenAddress"] ?? "",
       logoUrl: iconUrl,

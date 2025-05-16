@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:share/share.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../providers/api_provider.dart';
 import '../model/coin.dart';
@@ -27,11 +26,6 @@ class _ListWidgetState extends ConsumerState<ListWidget> {
   bool _showFavoritesOnly = false;
   final TextEditingController _searchController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
   String formatMarketCap(double value) {
     if (value >= 1e9) return '${(value / 1e9).toStringAsFixed(2)}B';
     if (value >= 1e6) return '${(value / 1e6).toStringAsFixed(2)}M';
@@ -42,6 +36,13 @@ class _ListWidgetState extends ConsumerState<ListWidget> {
   Future<void> _launchTwitterUrl() async {
     final Uri url = Uri.parse('https://x.com/voliosolana');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) throw 'Could not launch $url';
+  }
+
+  Future<void> _launchPumpUrl(String address) async {
+    final Uri url = Uri.parse('https://pump.fun/coin/$address');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      throw 'Could not launch $url';
+    }
   }
 
   void _refreshData() {
@@ -124,14 +125,14 @@ class _ListWidgetState extends ConsumerState<ListWidget> {
                 children: [
                   Expanded(child: _buildCoinList("New Pump.fun Tokens", pumpCoins)),
                   const VerticalDivider(width: 1),
-                  Expanded(child: _buildCoinList("Trending Coins", trendingCoins)),
+                  Expanded(child: _buildCoinList("Trending Big Coins", trendingCoins)),
                 ],
               )
                   : ListView(
                 children: [
                   _buildCoinList("New Pump.fun Tokens", pumpCoins, height: 300),
                   const Divider(height: 1),
-                  _buildCoinList("Trending Coins", trendingCoins, height: 300),
+                  _buildCoinList("Trending Big Coins", trendingCoins, height: 300),
                 ],
               ),
             ),
@@ -253,7 +254,37 @@ class _ListWidgetState extends ConsumerState<ListWidget> {
                     child: Icon(Icons.token, color: isNewToken ? Colors.purple : Colors.grey[700]),
                   ),
                   title: Text('${coin.name} (${coin.ticker})'),
-                  subtitle: Text('Vol: ${coin.volume?.toStringAsFixed(2)}\nCap: ${formatMarketCap(coin.marketCap ?? 0)}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Vol: ${coin.volume?.toStringAsFixed(2)}\nCap: ${formatMarketCap(coin.marketCap ?? 0)}'),
+                      SizedBox(
+                        height: 40,
+                        child: LineChart(
+                          LineChartData(
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: [
+                                  FlSpot(0, 1),
+                                  FlSpot(1, 1.5),
+                                  FlSpot(2, 1.4),
+                                  FlSpot(3, 1.7),
+                                  FlSpot(4, 2),
+                                ],
+                                isCurved: true,
+                                color: Colors.green[200],
+                                dotData: FlDotData(show: false),
+                                belowBarData: BarAreaData(show: false),
+                              )
+                            ],
+                            titlesData: FlTitlesData(show: false),
+                            gridData: FlGridData(show: false),
+                            borderData: FlBorderData(show: false),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   trailing: IconButton(
                     tooltip: 'Favorite',
                     icon: Icon(
@@ -268,7 +299,7 @@ class _ListWidgetState extends ConsumerState<ListWidget> {
                       }
                     }),
                   ),
-                  onTap: () => Share.share('Check out ${coin.name} on VOLIO: ${coin.ticker}'),
+                  onTap: () => _launchPumpUrl(coin.address ?? ''),
                 );
               },
             ),
